@@ -1,17 +1,30 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
+import { toPng } from "html-to-image";
 
 function Buy_Tickets() {
+  const ticketRef = useRef(null);
   // Plus count
-  const [count, setCount] = useState(0);
-  const [change, setChange] = useState(0);
-  const [time, settime] = useState("");
-  const [date, setdate] = useState("");
+  // Restore any previously booked ticket from localStorage
+  const stored = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("aq_booking")) || {};
+    } catch {
+      return {};
+    }
+  })();
 
-  const [isformSubmited, setisformSubmited] = useState(false);
+  const [count, setCount] = useState(stored.count ?? 0);
+  const [change, setChange] = useState(stored.change ?? 0);
+  const [time, settime] = useState(stored.time ?? "");
+  const [date, setdate] = useState(stored.date ?? "");
+
+  const [isformSubmited, setisformSubmited] = useState(
+    stored.submitted ?? false
+  );
 
   // Form validation
-  const [user, setuser] = useState("");
-  const [pass, setpass] = useState("");
+  const [user, setuser] = useState(stored.user ?? "");
+  const [pass, setpass] = useState(stored.pass ?? "");
   const [UserErr, setuserErr] = useState(false);
   const [PassErr, setPassErr] = useState(false);
 
@@ -40,6 +53,8 @@ function Buy_Tickets() {
     e.preventDefault();
     // Check if form fields meet the basic criteria
     if (user.length > 3 && pass.length === 10 && /^[0-9]+$/.test(pass)) {
+      const booking = { user, pass, date, time, count, change, submitted: true };
+      localStorage.setItem("aq_booking", JSON.stringify(booking));
       setisformSubmited(true);
       alert("Congratulations, Your ticket booked 🎉🎫✈️");
     } else {
@@ -47,7 +62,35 @@ function Buy_Tickets() {
     }
   }
 
-  function handleDownload() {}
+  function handleNewBooking() {
+    localStorage.removeItem("aq_booking");
+    setuser("");
+    setpass("");
+    setdate("");
+    settime("");
+    setCount(0);
+    setChange(0);
+    setisformSubmited(false);
+  }
+
+  async function handleDownload() {
+    if (!ticketRef.current) return;
+    try {
+      const dataUrl = await toPng(ticketRef.current, {
+        cacheBust: true,
+        pixelRatio: 3,
+        skipFonts: true,
+        backgroundColor: "transparent",
+      });
+      const link = document.createElement("a");
+      link.download = "national-aquarium-ticket.png";
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      alert("Sorry, the ticket could not be downloaded. Please try again.");
+      console.error(err);
+    }
+  }
 
   return (
     <>
@@ -58,65 +101,102 @@ function Buy_Tickets() {
             <div className="container">
               <div className="row">
                 <div className="booking-form">
-                  <div className="booking-bg" />
                   {isformSubmited ? (
-                    <form id="ticketDetails" className="formbody">
-                      <div className="form-header">
-                        <h2>Ticket Details</h2>
-                      </div>
+                    <div className="ticket-view">
+                      <div className="aq-ticket" ref={ticketRef}>
+                        <div className="card">
+                          <div className="notes">♪♪♪♪♪</div>
+                          <div className="notes">♪♪♪♪</div>
+                          <div className="notes">♪♪♪♪♪</div>
 
-                      <div className="row">
-                        <div className="col-md-6">
-                          <div className="form-group">
-                            <span className="form-label">Check In</span>
-                            <span className="form-control">{date}</span>
+                          <div className="header">
+                            TICKET
+                            <div className="symbol">✁</div>
                           </div>
-                        </div>
-                        <div className="col-md-6">
-                          <div className="form-group">
-                            <span className="form-label">Check In Time</span>
-                            <span className="form-control">{time}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="row">
-                        <div className="col-md-6">
-                          <div className="form-group">
-                            <span className="form-label">Adults</span>
+                          <div className="body">
+                            <em>Admission Pass</em>
                             <br />
-                            <span className="form-control">{count}</span>
-                          </div>
-                        </div>
-                        <div className="col-md-6">
-                          <div className="form-group">
-                            <span className="form-label">Children</span>
+                            {date || "—"}
+                            {time ? `  ·  ${time}` : ""}
                             <br />
-                            <span className="form-control">{change}</span>
+                            National Aquarium, Baltimore
                           </div>
+                          <div className="footer">
+                            <div className="number">
+                              Guests{" "}
+                              <span className="bold">{count + change}</span>
+                            </div>
+                            <div className="barcode"></div>
+                          </div>
+
+                          <div className="bg holographic"></div>
+                          <svg className="filter">
+                            <filter id="bump">
+                              <feTurbulence
+                                result="noise"
+                                numOctaves="3"
+                                baseFrequency="0.7"
+                                type="fractalNoise"
+                              ></feTurbulence>
+                              <feSpecularLighting
+                                in="noise"
+                                result="specular"
+                                lightingColor="#fffffc"
+                                specularExponent="25"
+                                specularConstant="0.8"
+                                surfaceScale="0.15"
+                              >
+                                <fePointLight
+                                  z="210"
+                                  y="100"
+                                  x="100"
+                                ></fePointLight>
+                              </feSpecularLighting>
+                              <feComposite
+                                result="noise2"
+                                operator="in"
+                                in="specular"
+                                in2="SourceGraphic"
+                              ></feComposite>
+                              <feBlend
+                                mode="screen"
+                                in2="noise2"
+                                in="SourceGraphic"
+                              ></feBlend>
+                            </filter>
+                          </svg>
+                        </div>
+
+                        <div className="ticket-meta">
+                          <p className="ticket-name">{user}</p>
+                          <p className="ticket-sub">
+                            Booking confirmed{pass ? ` · ${pass}` : ""}
+                          </p>
                         </div>
                       </div>
-                      <div className="form-group">
-                        <span className="form-label">Name</span>
-                        <span className="form-control">{user}</span>
-                      </div>
 
-                      <div className="form-group">
-                        <span className="form-label">Phone</span>
-                        <span className="form-control">{pass}</span>
+                      <div className="ticket-actions">
+                        <button
+                          type="button"
+                          className="submit-btn ticket-download-btn"
+                          onClick={handleDownload}
+                        >
+                          Download Ticket
+                        </button>
+                        <button
+                          type="button"
+                          className="ticket-new-btn"
+                          onClick={handleNewBooking}
+                        >
+                          Book another visit
+                        </button>
                       </div>
-
-                      <button
-                        type="button"
-                        className="submit-btn"
-                        // onClick={handleDownload}
-                      >
-                        Download Ticket
-                      </button>
-                    </form>
+                    </div>
                   ) : (
                     // Before Submit
-                    <form onSubmit={handleSubmit} className="formbody">
+                    <>
+                      <div className="booking-bg" />
+                      <form onSubmit={handleSubmit} className="formbody">
                       <div className="form-header">
                         <h2>Make your Visit</h2>
                       </div>
@@ -238,7 +318,8 @@ function Buy_Tickets() {
                           Book Now
                         </button>
                       </div>
-                    </form>
+                      </form>
+                    </>
                   )}
                 </div>
               </div>
